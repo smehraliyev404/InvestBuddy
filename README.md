@@ -117,15 +117,6 @@ This repository contains all backend, simple frontend, data access, and retrieva
 
 ---
 
-## Setup & Installation
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/smehraliyev404/InvestBuddy.git
-cd InvestBuddy
-
-
 ## 🔐 Repository History & Security Note
 
 This repository is a **second, clean version** of the InvestBuddy project.
@@ -139,3 +130,12 @@ As a team, we initially created a different GitHub repository where we accidenta
 Because of this, the **number of commits in this repo is lower** than the total work we actually did. The shorter history is the result of a **security-first reset**, not because the project is small or recently started.
 
 We now keep all secrets and API keys out of Git (via environment variables and ignored `.env` files) and treat this as a concrete example of improving our security practices as a team.
+
+
+## Setup & Installation
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/smehraliyev404/InvestBuddy.git
+cd InvestBuddy

@@ -124,3 +124,18 @@ This repository contains all backend, simple frontend, data access, and retrieva
 ```bash
 git clone https://github.com/smehraliyev404/InvestBuddy.git
 cd InvestBuddy
+
+
+## 🔐 Repository History & Security Note
+
+This repository is a **second, clean version** of the InvestBuddy project.
+
+As a team, we initially created a different GitHub repository where we accidentally pushed an `.env` file with a private API key to a public repo. As soon as we noticed this, we:
+
+1. **Revoked and rotated** the exposed key  
+2. **Stopped using** the original repository  
+3. **Migrated the project** into this new, clean repository **without any sensitive data**
+
+Because of this, the **number of commits in this repo is lower** than the total work we actually did. The shorter history is the result of a **security-first reset**, not because the project is small or recently started.
+
+We now keep all secrets and API keys out of Git (via environment variables and ignored `.env` files) and treat this as a concrete example of improving our security practices as a team.

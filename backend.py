@@ -42,18 +42,22 @@ app.add_middleware(
 # Initialize OpenAI client
 client = OpenAI(api_key=api_key)
 
+
 # Request/Response Models
 class Message(BaseModel):
     role: str
     content: str
 
+
 class ChatRequest(BaseModel):
     messages: List[Message]
     model: str = "gpt-3.5-turbo"
 
+
 class ChatResponse(BaseModel):
     message: str
     role: str = "assistant"
+
 
 @app.get("/")
 def read_root():
@@ -63,28 +67,53 @@ def read_root():
         "version": "1.0.0"
     }
 
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     try:
         # Convert Pydantic messages to dict format
         user_messages = [{"role": m.role, "content": m.content} for m in request.messages]
 
+        # Extract user profile if it exists (should be first system message from frontend)
+        user_profile = ""
+        conversation_messages = []
+
+        for msg in user_messages:
+            if msg["role"] == "system" and "User Profile:" in msg["content"]:
+                # This is the user profile from the form - store it separately
+                user_profile = msg["content"]
+            elif msg["role"] != "system":
+                # Keep user and assistant messages for conversation history
+                conversation_messages.append(msg)
+
         # Get the last user message for RAG context
         last_user_message = None
-        for msg in reversed(user_messages):
+        for msg in reversed(conversation_messages):
             if msg["role"] == "user":
                 last_user_message = msg["content"]
                 break
 
-        # Enhanced system prompt with RAG context AND practical guides
+        # Start building the enhanced system prompt
         enhanced_system_prompt = INVESTMENT_ADVISOR_PROMPT
+
+        # Add user profile if available (right after main prompt for context)
+        if user_profile:
+            enhanced_system_prompt += f"""
+
+---
+**ABOUT THIS USER:**
+
+{user_profile}
+
+**Important:** Use this profile information to personalize your advice. Consider their age, income, family situation, goals, and risk tolerance when making recommendations.
+---
+"""
 
         # Always include platform information and practical guides
         platforms_info = get_all_platforms_for_ai()
         practical_guide = BEGINNERS_GUIDE
 
-        # Add base context (platforms and how-to guide)
-        enhanced_system_prompt = f"""{INVESTMENT_ADVISOR_PROMPT}
+        enhanced_system_prompt += f"""
 
 ---
 **INVESTMENT PLATFORMS** (Always mention these with links when user asks how to invest):
@@ -99,41 +128,51 @@ async def chat(request: ChatRequest):
 ---
 """
 
+        # Get relevant ETF knowledge using RAG (with live data!)
         if last_user_message:
-            # Get relevant ETF knowledge using RAG (with live data!)
             etf_context = get_ai_context(last_user_message, n_results=3, include_live_data=True)
 
             if etf_context:
-                # Add ETF knowledge to system prompt
                 enhanced_system_prompt += f"""
 **RELEVANT ETF KNOWLEDGE WITH LIVE DATA** (Use this to provide better, more detailed answers):
 
 {etf_context}
 
 ---
-**IMPORTANT REMINDERS:**
+"""
+
+        # Add final reminders
+        enhanced_system_prompt += """
+**CRITICAL REMINDERS:**
 - Always explain in SIMPLE language (like talking to a friend who knows nothing about investing)
 - When recommending investments, ALWAYS include:
   1. What to buy (e.g., "SPY - an ETF containing America's top 500 companies")
   2. WHY to buy it (with beginner explanation)
-  3. CURRENT PRICE and performance (use the live data above)
+  3. CURRENT PRICE and performance (use the live data above if available)
   4. HOW to buy it (step-by-step using the platform guides above)
   5. Links to platforms where they can invest
 - Never assume the user knows anything - explain everything!
+- Use the user's profile information to give personalized advice
+- Be conversational, friendly, and encouraging
 ---
 """
 
-        # Add system prompt at the beginning if not present
-        if not user_messages or user_messages[0]["role"] != "system":
-            messages = [{"role": "system", "content": enhanced_system_prompt}] + user_messages
-        else:
-            messages = user_messages
+        # Construct final messages: system prompt + conversation history
+        messages = [{"role": "system", "content": enhanced_system_prompt}] + conversation_messages
+
+        # Debug: Print message structure
+        print(f"\n🔍 Debug - Messages sent to AI:")
+        print(f"   System prompt length: {len(enhanced_system_prompt)} chars")
+        print(f"   Conversation messages: {len(conversation_messages)}")
+        if last_user_message:
+            print(f"   Last user message: {last_user_message[:100]}...")
+        print()
 
         # Call OpenAI API
         response = client.chat.completions.create(
             model=request.model,
             messages=messages,
-            temperature=0.7  # Slightly creative but still focused
+            temperature=0.7
         )
 
         bot_message = response.choices[0].message.content
@@ -141,16 +180,21 @@ async def chat(request: ChatRequest):
 
     except Exception as e:
         print(f"❌ Chat error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
 
+
 # Simple webhook endpoint for n8n integration
 class SimpleMessageRequest(BaseModel):
     message: str
     model: str = "gpt-3.5-turbo"
+
 
 @app.post("/webhook/chat")
 async def webhook_chat(request: SimpleMessageRequest):
@@ -173,6 +217,7 @@ async def webhook_chat(request: SimpleMessageRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # New endpoints for InvestBuddy features
 
 # Get stock/ETF price
@@ -194,6 +239,7 @@ async def get_stock(symbol: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Get recommended ETFs with prices
 @app.get("/etfs/recommended")
 async def get_etfs():
@@ -208,6 +254,7 @@ async def get_etfs():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Generate investment recommendation
 class InvestmentRequest(BaseModel):
     salary: float
@@ -217,6 +264,7 @@ class InvestmentRequest(BaseModel):
     monthly_investment: float
     goal: str
     time_horizon_years: int
+
 
 @app.post("/investment/recommend")
 async def recommend_investment(request: InvestmentRequest):
